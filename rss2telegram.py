@@ -10,6 +10,7 @@ import time
 import random
 import requests
 import sqlite3
+import json
 
 def get_variable(variable):
     if not os.environ.get(f'{variable}'):
@@ -17,8 +18,6 @@ def get_variable(variable):
         return var_file.read()
     return os.environ.get(f'{variable}')
 
-URL = get_variable('URL')
-DESTINATION = get_variable('DESTINATION')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 EMOJIS = os.environ.get('EMOJIS', '🗞,📰,🗒,🗓,📋,🔗,📝,🗃')
 PARAMETERS = os.environ.get('PARAMETERS', False)
@@ -26,6 +25,9 @@ HIDE_BUTTON = os.environ.get('HIDE_BUTTON', False)
 DRYRUN = os.environ.get('DRYRUN')
 TOPIC = os.environ.get('TOPIC', False)
 TELEGRAPH_TOKEN = os.environ.get('TELEGRAPH_TOKEN', False)
+
+FEEDS = get_variable('FEEDS')
+feeds = json.loads(FEEDS)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -79,11 +81,15 @@ def create_telegraph_post(topic):
     )
     return response["url"]
 
-def send_message(topic, button):
+def send_message(feed, topic, button):
     if DRYRUN == 'failure':
         return
 
+    DESTINATION = feed.get('destination')
+    TOPIC = feed.get('topic')
+
     MESSAGE_TEMPLATE = os.environ.get(f'MESSAGE_TEMPLATE', False)
+    MESSAGE_TEMPLATE = '{TITLE}\n{LINK}'
 
     if MESSAGE_TEMPLATE:
         MESSAGE_TEMPLATE = set_text_vars(MESSAGE_TEMPLATE, topic)
@@ -117,8 +123,11 @@ def send_message(topic, button):
                     bot.send_photo(dest, photo, caption=MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, reply_to_message_id=TOPIC)
                 except telebot.apihelper.ApiTelegramException:
                     topic['photo'] = False
-                    send_message(topic, button)
+                    send_message(feed, topic, button)
         else:
+            print(DESTINATION)
+            print(MESSAGE_TEMPLATE)
+            print(TOPIC)
             for dest in DESTINATION.split(','):
                 bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, disable_web_page_preview=True, reply_to_message_id=TOPIC)
     print(f'... {topic["title"]}')
@@ -144,8 +153,6 @@ def define_link(link, PARAMETERS):
         return f'{link}?{PARAMETERS}'
     return f'{link}'
 
-
-
 def set_text_vars(text, topic):
     cases = {
         'SITE_NAME': topic['site_name'],
@@ -162,8 +169,9 @@ def set_text_vars(text, topic):
     return text.replace('\\n', '\n').replace('{', '').replace('}', '')
 
 
-def check_topics(url):
+def check_topics(feedParams):
     now = gmtime()
+    url = feedParams['url']
     feed = feedparser.parse(url)
     try:
         source = feed['feed']['title']
@@ -174,7 +182,6 @@ def check_topics(url):
     for tpc in reversed(feed['items'][:10]):
         if check_history(tpc.links[0].href):
             continue
-        add_to_history(tpc.links[0].href)
         topic = {}
         topic['site_name'] = feed['feed']['title']
         topic['title'] = tpc.title.strip()
@@ -185,12 +192,12 @@ def check_topics(url):
         if BUTTON_TEXT:
             BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
         try:
-            send_message(topic, BUTTON_TEXT)
+            send_message(feedParams, topic, BUTTON_TEXT)
+            add_to_history(tpc.links[0].href)
         except telebot.apihelper.ApiTelegramException as e:
             print(e)
             pass
 
 if __name__ == "__main__":
-    for url in URL.split():
-        check_topics(url)
-
+    for feed in feeds:
+        check_topics(feed)
