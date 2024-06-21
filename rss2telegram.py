@@ -26,6 +26,7 @@ DRYRUN = os.environ.get('DRYRUN')
 TOPIC = os.environ.get('TOPIC', False)
 TELEGRAPH_TOKEN = os.environ.get('TELEGRAPH_TOKEN', False)
 
+print(BOT_TOKEN)
 FEEDS = get_variable('FEEDS')
 feeds = json.loads(FEEDS)
 
