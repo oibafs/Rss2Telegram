@@ -43,7 +43,7 @@ jobs:
           DRYRUN: ${{ steps.download.outcome }}
           FEEDS: ${{ vars.FEEDS }}
       - name: Upload history
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rss2telegram
           path: rss2telegram.db
